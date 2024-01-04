@@ -1,14 +1,12 @@
 import numpy as np
 import tensorflow as tf
-from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Concatenate, Add, AveragePooling2D
+from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Concatenate, Add
 from keras.layers import Flatten, Reshape, UpSampling2D, Lambda
-from keras.models import Model, load_model
-from keras.regularizers import l1
-from keras.losses import MeanSquaredError, mean_squared_error
-from keras.utils.vis_utils import plot_model
+from keras.models import Model
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger
 from sklearn.model_selection import train_test_split
+from CL_Simple import Linear
 
 def ML_train(inp, numberx, numbery, path, offset = 1, activ = 'relu',
              valid = None, opt = 'adam', epoch = 1000, batch_size=32,
@@ -94,39 +92,15 @@ def ML_train(inp, numberx, numbery, path, offset = 1, activ = 'relu',
     fc5 = Dense(t, activation='tanh', name='FCe5')(fc5)
     fc6 = Dense(t, activation='tanh', name='FCe6')(fc6)
 
-    # mode1
     encoded = Add(name='Add')([fc1,fc2,fc3,fc4,fc5,fc6])
     encoded = Lambda(lambda x: x/6, name='Lambda')(encoded)
 
-    # mode2
-    # encoded = Concatenate(axis=-1)([fc1,fc2,fc3,fc4,fc5,fc6])
-    # encoded = Dense(t, activation='tanh')(encoded)
-
     input_Gx = Input(shape=t)
-    if operator == 'Linear':
-        from CL_Linear import Linear
-        KPM = Linear()
-    elif operator == 'Simple':
-        from CL_Simple import Linear
-        KPM = Linear()
-    elif operator == 'Eigen':
-        from CL_Eigen import Eigen
-        KPM = Eigen(offset)
-    elif operator == '':
-        KPM = Dense(t, activation='linear', use_bias=False, name='Koopman')
-    else:
-        raise ValueError('choose one in Linear/Simple/KPM/')
-
+    
+    KPM = Linear()
     encoded_fw = KPM(input_Gx)
 
     input_KGx = Input(shape=t)
-    # fc1x = Dense(t, activation=activ, name='FCd1')(input_KGx)
-    # fc2x = Dense(t, activation=activ, name='FCd2')(input_KGx)
-    # fc3x = Dense(t, activation=activ, name='FCd3')(input_KGx)
-    # fc4x = Dense(t, activation=activ, name='FCd4')(input_KGx)
-    # fc5x = Dense(t, activation=activ, name='FCd5')(input_KGx)
-    # fc6x = Dense(t, activation=activ, name='FCd6')(input_KGx)
-
     fc1x = Dense(shape[0], activation=activ, name='Upd1')(input_KGx)
     fc2x = Dense(shape[1], activation=activ, name='Upd2')(input_KGx)
     fc3x = Dense(shape[2], activation=activ, name='Upd3')(input_KGx)
@@ -167,18 +141,11 @@ def ML_train(inp, numberx, numbery, path, offset = 1, activ = 'relu',
     KGx_list = []
     pred_list = []
 
-    # x0_img = input_img
     Gx_img = encoder(input_img)
-    if operator == '' or operator == 'Simple':
-        KGx_img = Gx_img
-        for i in range(offset):
-            print('Koopman cycle in training:',i+1)
-            KGx_img = koopman(KGx_img)
-            KGx_list.append(KGx_img)
-            pred_img = decoder(KGx_img)
-            pred_list.append(pred_img)
-    else:
-        KGx_img = koopman(Gx_img)
+    KGx_img = Gx_img
+    for i in range(offset):
+        print('Koopman cycle in training:',i+1)
+        KGx_img = koopman(KGx_img)
         KGx_list.append(KGx_img)
         pred_img = decoder(KGx_img)
         pred_list.append(pred_img)
@@ -206,31 +173,15 @@ def ML_train(inp, numberx, numbery, path, offset = 1, activ = 'relu',
     c_lin = 1
     
     loss_lin = c_lin*l2(Gx_c, KGx_c)
-    # loss_rec = c_rec*l2(rec_img, x0_img) # Xt to Xt
-    # loss_pred = c_pred*l2(pred_img, x1_img) # Xt to Xt
-    
     autoencoder.add_loss(c_lin*loss_lin)
-    # autoencoder.add_loss(c_rec*loss_rec)
-    # autoencoder.add_loss(c_pred*loss_pred)
-    
     autoencoder.add_metric(c_lin*loss_lin, name='l_in')
-    # autoencoder.add_metric(loss_rec, name='l_rec')
-    # autoencoder.add_metric(loss_pred, name='l_pred')
-    # lr = tf.keras.optimizers.schedules.PiecewiseConstantDecay([500,500,500],[1e-3,1e-4,1e-5,1e-6])
-    # lr = tf.keras.optimizers.schedules.CosineDecay(1e-3, 0.1*int(epoch))
-    # lr = tf.keras.optimizers.schedules.ExponentialDecay(1e-3, int(0.025*epoch), 0.8)
-    # lr = tf.keras.optimizers.schedules.InverseTimeDecay(initial_learning_rate=1e-3,decay_steps=int(0.1*epoch),decay_rate=10)
-    # autoencoder.compile(optimizer=Adam(lr), loss='mse')
     autoencoder.compile(optimizer=Adam(), loss='mse')
     
     if offset == 1:
         monitor = 'val_tf.identity_2_loss'
     else:
         monitor = 'val_tf.concat_2_loss'
-    # monitor = 'loss'
 
-    # tf.keras.utils.plot_model(autoencoder, expand_nested=True)
-    # plot_model(autoencoder,to_file=path+'model.jpg', show_shapes=True, show_dtype=False, rankdir='TB', dpi=300)
     early_cb = EarlyStopping(monitor=monitor, mode='min', patience=patience, verbose=1)
     model_cb = ModelCheckpoint(path+'AE_weights.h5', monitor='loss',save_best_only=True,verbose=1,save_weights_only=True)
     csv_logger = CSVLogger(path+'training_log.csv', separator=',', append=False)

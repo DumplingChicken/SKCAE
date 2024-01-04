@@ -5,15 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import time as TT
-import ML_plot
-from sklearn.preprocessing import MinMaxScaler
 import ML_utils as ut
 from keras.models import load_model
 import tensorflow as tf
 from keras import backend as K
 import scipy
 
-case = 'channel'
+case = 'cylinder'
 method = 'Koopman'  
 ob = 'u'
 load = False 
@@ -46,10 +44,6 @@ noise_sigma = 0.5
 # Mask
 Mask = False
 mask_size = [16, 4]  
-
-# Test
-checkPoint = False 
-test = True 
 
 os.environ['PYTHONHASHSEED'] = str(seed)
 np.random.seed(seed)
@@ -86,6 +80,7 @@ elif case == 'channel':
     data = np.load('../' +fileName)[:S_col_full,:,:,0]    
     S_full = np.reshape(data, (data.shape[0], -1), order='C')
     S_full = np.transpose(S_full)
+    cmaps = plt.cm.jet
     
 trainT = startT + S_col * dltT
 endT = startT + S_col_full * dltT
@@ -93,7 +88,6 @@ endT = startT + S_col_full * dltT
 train_size = int((trainT - startT)/dltT)
 full_size = int((trainT -endT)/dltT)
 T_col = S_col_full - S_col
-# -----------------------------------Load Data------------------------------ #
 
 S_train = S_full[:, :S_col]
 S_test = S_full[:, S_col:]
@@ -182,6 +176,7 @@ if 'Koopman' in method:
     import ML_Koopman_Time as ML_KPM 
     operator = 'Simple'
     from CL_Simple import Linear
+    method = 'Koopman'
 
     if normalize:   
         from sklearn import preprocessing
@@ -344,8 +339,6 @@ if 'Koopman' in method:
     ut.plot_lstm(Gx_pred[idx,:], train_size, time, plot_r, path, name='Koopman Observable', label=True)
 
     ut.plot_trace(encoded_pred[idx,:], S_col, path+'/Trace.jpg')
-    
-    method = 'Koopman'
 # =============================================================================
 # DMD
 # =============================================================================
@@ -361,11 +354,11 @@ elif method == 'DMD':
     snapshots2 = list(np.transpose(S_pred))
     onlineEnd = TT.perf_counter()
     
-    __, sigma, __ = ls.compute_svd(S_train[:, :S_col-1], svd_rank=-1)
-    POD_modes, __, __ = ls.compute_svd(S_train[:, :S_col], svd_rank=-1)
+    __, sigma, __ = ut.compute_svd(S_train[:, :S_col-1], svd_rank=-1)
+    POD_modes, __, __ = ut.compute_svd(S_train[:, :S_col], svd_rank=-1)
     cumulative_energy = np.cumsum(sigma**2 / (sigma**2).sum())
     np.savetxt(path + '/eig_cum.csv', cumulative_energy, delimiter=',')
-    ls.plotSigma(sigma, rank, 'Normalized singular values', path + 'DMD Normalized singular values.png')
+    ut.plotSigma(sigma, rank, 'Normalized singular values', path + 'DMD Normalized singular values.png')
 
     modes = dmd.modes
     dynamics = dmd.dynamics
@@ -389,8 +382,8 @@ elif method == 'DMD':
     ls.plotModes_fast(x, y, numberx, numbery, plot_r, path, dmd.modes.imag, cmaps, ob='DMD mode imag')
 
     plot_time = 150
-    ls.plotDynamics(dmd.dynamics[:plot_r:, :plot_time].real, time[:plot_time], 'DMD dynamics (real part)', path)
-    ls.plotDynamics(dmd.dynamics[:plot_r, :plot_time].imag, time[:plot_time], 'DMD dynamics (imaginary part)', path)
+    ut.plotDynamics(dmd.dynamics[:plot_r:, :plot_time].real, time[:plot_time], 'DMD dynamics (real part)', path)
+    ut.plotDynamics(dmd.dynamics[:plot_r, :plot_time].imag, time[:plot_time], 'DMD dynamics (imaginary part)', path)
 
     np.save(path+'/KPO', KPO)
     np.save(path+'/idx', idx)
@@ -444,13 +437,13 @@ if plotErr:
 if contour:
     if video:
         if plotOrigin:
-            ls.video(startT, endT, pltT, dltT, path, time, ob='Original contour_')   
+            ut.video(startT, endT, pltT, dltT, path, time, ob='Original contour_')   
         if plotPredict:
-            ls.video(startT, endT, pltT, dltT, path, time, ob='{} reconstructed contour_'.format(method))   
+            ut.video(startT, endT, pltT, dltT, path, time, ob='{} reconstructed contour_'.format(method))   
         if plotErr:
-            ls.video(startT, endT, pltT, dltT, path, time, ob='vorticity error contour_')  
+            ut.video(startT, endT, pltT, dltT, path, time, ob='vorticity error contour_')  
         if Noise or Mask:
-            ls.video(startT, endT, pltT, dltT, path, time, ob='Corrupted contour_')  
+            ut.video(startT, endT, pltT, dltT, path, time, ob='Corrupted contour_')  
         
 # =============================================================================
 # Error estimation
@@ -459,20 +452,20 @@ minT = int(min(len(snapshots), len(snapshots2)))
 snapshots = snapshots[:minT]
 snapshots2 = snapshots2[:minT]
 
-spatial_RMSE = ML_plot.plot_spatial_NME(snapshots, snapshots2, time[0],
+spatial_RMSE = ut.plot_spatial_NME(snapshots, snapshots2, time[0],
                                    trainT, time[minT-1], dltT, path, 
                                    method='{}'.format(method), ob='RMSE')
 
 arr = np.zeros((x.size))
-temporal_RMSE = ls.get_tmporal_NME(snapshots[:minT], snapshots2[:minT], arr, 'RMSE') 
+temporal_RMSE = ut.get_tmporal_NME(snapshots[:minT], snapshots2[:minT], arr, 'RMSE') 
 
 ls.plot_temporal_rmse_fast(x, y, numberx, numbery, plt.cm.jet, 
                            temporal_RMSE, path, method='{}'.format(method), ob='RMSE')
 
-RMSE_train = ls.get_rmse(snapshots[:S_col], snapshots2[:S_col])
+RMSE_train = ut.get_rmse(snapshots[:S_col], snapshots2[:S_col])
 if minT > S_col:
-    RMSE_pred = ls.get_rmse(snapshots[S_col:], snapshots2[S_col:])
-    RMSE_all = ls.get_rmse(snapshots, snapshots2)
+    RMSE_pred = ut.get_rmse(snapshots[S_col:], snapshots2[S_col:])
+    RMSE_all = ut.get_rmse(snapshots, snapshots2)
 else:
     RMSE_pred = np.nan
     RMSE_all = np.nan

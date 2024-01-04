@@ -5,8 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import time as TT
-import ML_plot
-from sklearn.preprocessing import MinMaxScaler
 import ML_utils as ut
 from keras.models import load_model
 import tensorflow as tf
@@ -45,10 +43,6 @@ noise_sigma = 0.5
 # Mask
 Mask = False
 mask_size = [64, 16] 
-
-# Test
-checkPoint = False 
-test = True 
 
 os.environ['PYTHONHASHSEED'] = str(seed)
 np.random.seed(seed)
@@ -156,8 +150,6 @@ plt.rc('font',family='Times New Roman')
 plt.rcParams['mathtext.fontset'] = 'stix'
 font={'family': 'Times New Roman', 'math_fontfamily':'stix'}
 
-if checkPoint:    
-    input('snapshots have been read, press Enter to continue')
 offlineStart = TT.time()   
 
 data = np.reshape(S_full, (-1, numberx*numbery, 2))
@@ -181,7 +173,6 @@ if 'Koopman' in method:
     import ML_Koopman_Time as ML_KPM 
     operator = 'Simple'
     from CL_Simple import Linear
-
     method = 'Koopman'
 
     if normalize:   
@@ -333,7 +324,7 @@ minT = int(min(len(snapshots), len(snapshots2)))
 snapshots = snapshots[:minT]
 snapshots2 = snapshots2[:minT]
 
-spatial_RMSE = ML_plot.plot_spatial_NME(snapshots, snapshots2, time[0],
+spatial_RMSE = ut.plot_spatial_NME(snapshots, snapshots2, time[0],
                                    trainT, time[minT-1], dltT, path, 
                                    method='{}'.format(method), ob='RMSE')
 
