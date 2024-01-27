@@ -173,10 +173,14 @@ font={'family': 'Times New Roman', 'math_fontfamily':'stix'}
 # Koopman
 # =============================================================================   
 if 'Koopman' in method:
-    import ML_Koopman_Time as ML_KPM 
-    operator = 'Simple'
-    from CL_Simple import Linear
     method = 'Koopman'
+    if 'Torch' in method:
+        import torch
+        import ML_Koopman_Torch as ML_KPM 
+    else:
+        import ML_Koopman_Time as ML_KPM 
+        operator = 'Simple'
+        from CL_Simple import Linear
 
     if normalize:   
         from sklearn import preprocessing
@@ -231,9 +235,9 @@ if 'Koopman' in method:
     eig_func = eigvec_l.T @ encoded_ori
     Gx_rec = eigvec @ eig_func
 
+    offset = 1
     for m, i in enumerate(range(S_col, S_col_full, offset), 0): 
         op_num = m + 1
-        print('Koopman cycle:{}, {}-{} to {}-{}'.format(op_num,m,i,op_num*offset,i+offset))
         encoded = ML_KPM.koopman_pred(encoded, numberx, numbery, koopman) 
         encoded_pred[:,i:i+offset] = encoded[:,-offset:] 
 
@@ -309,11 +313,11 @@ if 'Koopman' in method:
                 inp = np.transpose(S_train)
             inp = np.reshape(inp, (-1, numberx*numbery, 1))
             for i in range(numberx*numbery):
-                print(i)
                 x_in = inp[:,i,:]
-                Gx_2d.append(encoder(np.repeat(
-                    x_in[:,np.newaxis,:], numberx*numbery, axis=1
-                    ).reshape(-1, numberx, numbery, 1)).numpy())
+                x_out = np.repeat(x_in[:,np.newaxis,:], numberx*numbery, axis=1)
+                x_out = x_out.reshape(-1, numberx, numbery, 1)
+                Gx = encoder(x_out).numpy()
+                Gx_2d.append(Gx)
             Gx_2d = np.stack(Gx_2d,axis=1).transpose(2,1,0)
             eig_func2d, ___ = ut.Rec_func(Gx_2d, eigvec_l, eigvec)
             np.save(path+'/eig_func2d', eig_func2d)
